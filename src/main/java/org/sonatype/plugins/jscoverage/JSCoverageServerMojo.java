@@ -40,7 +40,6 @@ public class JSCoverageServerMojo
      */
     private File reportDir;
 
-    @Override
     protected void customizeCommandLine( Commandline cmd )
     {
         super.customizeCommandLine( cmd );
@@ -61,7 +60,6 @@ public class JSCoverageServerMojo
         }
     }
 
-    @Override
     protected String getExecutable()
     {
         return "jscoverage-server";
