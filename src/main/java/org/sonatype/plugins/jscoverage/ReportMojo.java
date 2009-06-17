@@ -1,12 +1,29 @@
 package org.sonatype.plugins.jscoverage;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Writer;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+import net.sf.json.xml.XMLSerializer;
 
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.codehaus.plexus.util.FileUtils;
+import org.codehaus.plexus.util.IOUtil;
 
 /**
  * @goal report
@@ -33,6 +50,8 @@ public class ReportMojo
     private File destination;
 
     /**
+     * Coverage result in json format
+     *
      * @parameter default-value="${basedir}/jscoverage.json.result"
      * @required
      */
@@ -43,6 +62,13 @@ public class ReportMojo
      */
     private File reportOutput;
 
+    /**
+     * Reports formats, valid values: html, json, xml and txt. Default-value: [html, txt]
+     *
+     * @parameter
+     */
+    private String[] formats = { "html", "txt" };
+
     public void execute()
         throws MojoExecutionException, MojoFailureException
     {
@@ -51,6 +77,159 @@ public class ReportMojo
             destination = source;
         }
 
+        List<String> formats = Arrays.asList( this.formats );
+        if ( formats.contains( "html" ) )
+        {
+            generateHtmlReport();
+        }
+        if ( formats.contains( "json" ) )
+        {
+            generateJsonReport();
+        }
+        if ( formats.contains( "txt" ) )
+        {
+            generateTxtReport();
+        }
+        if ( formats.contains( "xml" ) )
+        {
+            generateXmlReport();
+        }
+    }
+
+    private void generateXmlReport()
+        throws MojoExecutionException
+    {
+        InputStream input = null;
+        OutputStream output = null;
+        try
+        {
+            input = new FileInputStream( persistedResults );
+
+            String jscoverage = IOUtil.toString( input );
+            JSONObject json = JSONObject.fromObject( jscoverage );
+            String xml = new XMLSerializer().write( json );
+            output = new FileOutputStream( new File( reportOutput, "jscoverage.xml" ) );
+            IOUtil.copy( xml, output );
+        }
+        catch ( IOException e )
+        {
+            throw new MojoExecutionException( "Error generating XML report: " + e.getMessage(), e );
+        }
+        finally
+        {
+            IOUtil.close( input );
+            IOUtil.close( output );
+        }
+    }
+
+    @SuppressWarnings( "unchecked" )
+    private void generateTxtReport()
+        throws MojoExecutionException
+    {
+        InputStream input = null;
+        Writer output = null;
+        try
+        {
+            input = new FileInputStream( persistedResults );
+
+            String jscoverage = IOUtil.toString( input );
+            JSONObject json = JSONObject.fromObject( jscoverage );
+            Set<String> files = json.keySet();
+            Map<String, int[]> results = new LinkedHashMap<String, int[]>();
+            int coveredFiles = 0;
+            int totalFiles = json.size();
+            int sumTotalStatements = 0;
+            int sumCoveredStatements = 0;
+            for ( String file : files )
+            {
+                JSONObject result = json.getJSONObject( file );
+                JSONArray coverage = result.getJSONArray( "coverage" );
+                int totalStatements = coverage.size();
+                int coveredStatements = countCoveredStatements( coverage );
+
+                sumCoveredStatements += coveredStatements;
+                sumTotalStatements += totalStatements;
+
+                if ( coveredStatements > 0 )
+                {
+                    coveredFiles++;
+                }
+
+                results.put( file, new int[] { coveredStatements, totalStatements } );
+            }
+            output = new FileWriter( new File( reportOutput, "jscoverage.txt" ) );
+            output.write( "[JScoverage report, generated " + new Date() + "]\n" );
+            output.write( "-------------------------------------------------------------------------------\n" );
+            output.write( "OVERALL COVERAGE SUMMARY:\n" );
+            output.write( "\n" );
+            output.write( "[files, %]\t[statements, %]\n" );
+            output.write( getPartialResult( coveredFiles, totalFiles ) + "\t"
+                + getPartialResult( sumCoveredStatements, sumTotalStatements ) + "\n" );
+            output.write( "\n" );
+            output.write( "OVERALL STATS SUMMARY:\n" );
+            output.write( "\n" );
+            output.write( "total files: " + totalFiles + "\n" );
+            output.write( "total statements: " + sumTotalStatements + "\n" );
+            output.write( "\n" );
+            output.write( "COVERAGE BREAKDOWN BY FILE:\n" );
+            output.write( "\n" );
+            output.write( "[statements, %]\t[name]\n" );
+            for ( String file : files )
+            {
+                int[] cover = results.get( file );
+                output.write( getPartialResult( cover[0], cover[1] ) + "\t" + file + "\n" );
+            }
+            output.write( "-------------------------------------------------------------------------------\n" );
+        }
+        catch ( IOException e )
+        {
+            throw new MojoExecutionException( "Error generating TXT report: " + e.getMessage(), e );
+        }
+        finally
+        {
+            IOUtil.close( input );
+            IOUtil.close( output );
+        }
+    }
+
+    private String getPartialResult( int covered, int total )
+    {
+        double per = ( (double) covered * 100 ) / ( total );
+        return Math.ceil( per ) + "% (" + covered + "/" + total + ")";
+    }
+
+    private int countCoveredStatements( JSONArray coverage )
+    {
+        int total = 0;
+        for ( Object object : coverage )
+        {
+            if ( object instanceof Number )
+            {
+                if ( ( (Number) object ).intValue() != 0 )
+                {
+                    total++;
+                }
+            }
+        }
+        return total;
+    }
+
+    private void generateJsonReport()
+        throws MojoExecutionException
+    {
+        try
+        {
+            FileUtils.copyFile( persistedResults, new File( reportOutput, "jscoverage.json" ) );
+        }
+        catch ( IOException e )
+        {
+            throw new MojoExecutionException( "Error generating JSON report: " + e.getMessage(), e );
+        }
+    }
+
+    private void generateHtmlReport()
+        throws MojoExecutionException
+    {
         try
         {
             FileUtils.copyDirectoryStructure( destination, reportOutput );
@@ -64,7 +243,7 @@ public class ReportMojo
         }
         catch ( IOException e )
         {
-            throw new MojoExecutionException( e.getMessage(), e );
+            throw new MojoExecutionException( "Error generating HTML report: " + e.getMessage(), e );
         }
     }
 
