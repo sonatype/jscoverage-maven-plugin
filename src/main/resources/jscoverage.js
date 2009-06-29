@@ -287,6 +287,10 @@ function jscoverage_body_load() {
     var div = document.getElementById('summaryErrorDiv');
     div.innerHTML = 'Error: ' + e;
   }
+  
+  //the most incredible dummy workaround I ever saw, had to do that to keep sources in memory, no idea why this helped
+  var currentCoverage = _$jscoverage;
+
 
   if (jscoverage_isReport) {
     jscoverage_beginLengthyOperation();
@@ -309,8 +313,15 @@ function jscoverage_body_load() {
             var file;
             for (file in json) {
               var fileCoverage = json[file];
+              //the most incredible dummy workaround I ever saw, had to do that to keep sources in memory, no idea why this helped
+                var originalSource = currentCoverage[file].source;
+              
               _$jscoverage[file] = fileCoverage.coverage;
-              _$jscoverage[file].source = fileCoverage.source;
+              if(originalSource) {
+              	_$jscoverage[file].source = originalSource;
+              } else {
+              	_$jscoverage[file].source = fileCoverage.source;
+              }
             }
             jscoverage_recalculateSummaryTab();
             summaryThrobber.style.visibility = 'hidden';

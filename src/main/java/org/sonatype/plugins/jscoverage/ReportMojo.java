@@ -6,9 +6,11 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Writer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,6 +26,7 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.IOUtil;
+import org.codehaus.plexus.util.InterpolationFilterReader;
 
 /**
  * @goal report
@@ -69,12 +72,23 @@ public class ReportMojo
      */
     private String[] formats = { "html", "txt" };
 
+    /**
+     * @parameter
+     */
+    private String scripts;
+
     public void execute()
         throws MojoExecutionException, MojoFailureException
     {
         if ( destination == null )
         {
             destination = source;
+        }
+
+        if ( !persistedResults.exists() )
+        {
+            getLog().warn( "Data source jscoverage.json.result doesn't exists, skipping report generation!" );
+            return;
         }
 
         List<String> formats = Arrays.asList( this.formats );
@@ -238,12 +252,44 @@ public class ReportMojo
             copyUrl( "jscoverage-ie.css" );
             copyUrl( "jscoverage-throbber.gif" );
             copyUrl( "jscoverage.css" );
-            copyUrl( "jscoverage.html" );
             copyUrl( "jscoverage.js" );
+            copyInterpolateUrl( "jscoverage.html" );
         }
         catch ( IOException e )
         {
             throw new MojoExecutionException( "Error generating HTML report: " + e.getMessage(), e );
+        }
+    }
+
+    private void copyInterpolateUrl( String url )
+        throws IOException
+    {
+        final Map<String, String> vars;
+        if ( scripts != null )
+        {
+            vars = Collections.singletonMap( "scripts", scripts );
+        }
+        else
+        {
+            vars = Collections.singletonMap( "scripts", "" );
+        }
+
+        InterpolationFilterReader reader = null;
+        InputStream input = null;
+        FileWriter output = null;
+        try
+        {
+            input = getClass().getResourceAsStream( "/" + url );
+            reader = new InterpolationFilterReader( new InputStreamReader( input ), vars );
+            output = new FileWriter( new File( reportOutput, url ) );
+
+            IOUtil.copy( reader, output );
+        }
+        finally
+        {
+            IOUtil.close( output );
+            IOUtil.close( reader );
+            IOUtil.close( input );
         }
     }
 
