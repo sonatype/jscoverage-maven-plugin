@@ -36,6 +36,7 @@ public abstract class AbstractJSCoverageMojo
         if ( skipCoverage )
         {
             getLog().warn( "Skipping coverage" );
+            return;
         }
 
         validate();
