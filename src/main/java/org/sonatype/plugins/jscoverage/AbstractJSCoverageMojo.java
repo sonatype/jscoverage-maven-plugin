@@ -20,6 +20,11 @@ public abstract class AbstractJSCoverageMojo
      */
     private File target;
 
+    /**
+     * @parameter default-value="false" expression="${skip.jscoverage}"
+     */
+    private boolean skipCoverage;
+
     public AbstractJSCoverageMojo()
     {
         super();
@@ -28,6 +33,11 @@ public abstract class AbstractJSCoverageMojo
     public final void execute()
         throws MojoExecutionException, MojoFailureException
     {
+        if ( skipCoverage )
+        {
+            getLog().warn( "Skipping coverage" );
+        }
+
         validate();
 
         Commandline cmd = new Commandline();
