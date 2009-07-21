@@ -40,6 +40,7 @@ public class JSCoverageInstrumentMojo
      */
     private String[] exclude;
 
+    @Override
     protected void validate()
         throws MojoFailureException, MojoExecutionException
     {
@@ -72,6 +73,7 @@ public class JSCoverageInstrumentMojo
         }
     }
 
+    @Override
     protected void customizeCommandLine( Commandline cmd )
     {
         super.customizeCommandLine( cmd );
@@ -88,9 +90,23 @@ public class JSCoverageInstrumentMojo
         cmd.createArg().setValue( destination.getAbsolutePath() );
     }
 
+    @Override
     protected String getExecutable()
     {
         return "jscoverage";
+    }
+
+    @Override
+    protected boolean skipCoverage()
+    {
+        File flag = new File( destination, "jscoverage.flag" );
+        if ( flag.exists() )
+        {
+            return true;
+        }
+        flag.mkdirs();
+
+        return false;
     }
 
 }
