@@ -40,6 +40,13 @@ public class JSCoverageInstrumentMojo
      */
     private String[] exclude;
 
+    /**
+     * Location to record a flag to avoid reinstrumenting the same sources, jscoverage doesn't handle that well.
+     *
+     * @parameter expression="${project.build.directory}/jscoverage.flag"
+     */
+    private File flag;
+
     @Override
     protected void validate()
         throws MojoFailureException, MojoExecutionException
@@ -99,12 +106,20 @@ public class JSCoverageInstrumentMojo
     @Override
     protected boolean skipCoverage()
     {
-        File flag = new File( destination, "jscoverage.flag" );
         if ( flag.exists() )
         {
+            getLog().info( "Code already instrumented! Skipping" );
             return true;
         }
-        flag.mkdirs();
+        flag.getParentFile().mkdirs();
+        try
+        {
+            flag.createNewFile();
+        }
+        catch ( IOException e )
+        {
+            getLog().error( "Error creating jscoverage flag file", e );
+        }
 
         return false;
     }

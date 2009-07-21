@@ -33,13 +33,18 @@ public abstract class AbstractJSCoverageMojo
     public final void execute()
         throws MojoExecutionException, MojoFailureException
     {
-        if ( skipCoverage || skipCoverage() )
+        if ( skipCoverage )
         {
             getLog().warn( "Skipping coverage" );
             return;
         }
 
         validate();
+
+        if ( skipCoverage() )
+        {
+            return;
+        }
 
         Commandline cmd = new Commandline();
         cmd.setExecutable( getExecutable() );
